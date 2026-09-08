@@ -26,9 +26,9 @@ export default function Page() {
           <section id="showcase" className="border-b hairline">
             <div className="mx-auto max-w-site px-5 py-20 md:px-8 md:py-28">
               <div className="eyebrow">Showcase · Seedance 2.5</div>
-              <h2 className="display mt-4 text-[32px] md:text-[52px]">全部由 Seedance 2.5 单次生成</h2>
+              <h2 className="display mt-4 text-[32px] md:text-[52px]">Seedance 2.5 出的片</h2>
               <p className="mt-5 max-w-[40em] text-[16px] leading-relaxed text-ink-2">
-                每条都是一次请求直出的连续叙事，没有模板拼贴。悬停预览，点开有声。
+                每一场都是模型单次连续生成，场与场之间无损拼接，没有模板套壳。悬停预览，点开有声。
               </p>
               <div className="mt-10">
                 <Gallery items={gallery} />

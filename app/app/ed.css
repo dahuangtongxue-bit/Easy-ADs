@@ -1,0 +1,15 @@
+/* easy-director 引擎工作台需要的少量全局样式（原 ED globals.css），只在 /app 下加载 */
+.ed-scope * {
+  box-sizing: border-box;
+}
+.ed-scope button,
+.ed-scope input,
+.ed-scope select,
+.ed-scope textarea {
+  font-family: inherit;
+}
+@keyframes ac-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

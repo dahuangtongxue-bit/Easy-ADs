@@ -3,7 +3,7 @@
 丢素材，出广告 —— 素材 + 一句剧情 → 30 秒内广告成片（Seedance 2.5）。
 
 - `/` 对外展示站（本包）
-- `/app` 出片工作台（下一包：搬入 easy-director 2.5 引擎）
+- `/app` 出片工作台：easy-director v66 引擎原样搬入（`components/ed/`、`lib/`、`app/api/`、`netlify/functions/`），只用 Seedance 2.5，默认广告种草、20~30 秒、720p
 
 ## 本地运行
 
@@ -26,7 +26,7 @@ npm run dev
 
 - 新建站点连接本仓库，构建命令 `npm run build`，Next.js 插件自动启用（见 `netlify.toml`）
 - 「申请内测」表单走 Netlify Forms：`public/__forms.html` 里的静态表单负责被 Netlify 识别，页面表单用 fetch 提交到它；部署后在 Netlify → Forms 里看提交
-- 环境变量本包不需要；下一包接入引擎时复制 easy-director 站点的变量
+- 环境变量：见 `.env.example`，与 easy-director 站点同名同值，在 Netlify → Site configuration → Environment variables 里逐个加上（或用 Netlify CLI `netlify env:import`）；改完手动 Trigger deploy
 
 ## 版本
 

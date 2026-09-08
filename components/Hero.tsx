@@ -34,8 +34,9 @@ export default function Hero({ hero, hasShowcase }: { hero?: ShowcaseItem; hasSh
           <span className="text-ink">商品对得上，节奏像广告，拿来就能投。</span>
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-3">
-          <a href="#early-access" className="btn btn-accent">申请内测</a>
+          <a href="/app" className="btn btn-accent">开始出片</a>
           {hasShowcase && <a href="#showcase" className="btn btn-ghost">看成片</a>}
+          <a href="#early-access" className="btn btn-ghost">申请内测</a>
         </div>
         <ul className="mt-10 flex flex-wrap gap-2" aria-label="核心能力">
           {CHIPS.map((c) => (

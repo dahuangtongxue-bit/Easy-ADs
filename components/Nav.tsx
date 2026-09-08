@@ -13,9 +13,10 @@ export default function Nav({ hasShowcase }: { hasShowcase: boolean }) {
           <a className="hover:text-ink" href="#flow">流程</a>
           <a className="hover:text-ink" href="#compliance">合规</a>
         </nav>
-        <a href="#early-access" className="btn btn-accent !py-2 !px-4 text-[14px]">
-          申请内测
-        </a>
+        <div className="flex items-center gap-2">
+          <a href="#early-access" className="btn btn-ghost !py-2 !px-4 text-[14px]">申请内测</a>
+          <Link href="/app" className="btn btn-accent !py-2 !px-4 text-[14px]">进入工作台</Link>
+        </div>
       </div>
     </header>
   );

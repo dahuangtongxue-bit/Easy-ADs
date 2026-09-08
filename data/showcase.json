@@ -1,4 +1,49 @@
 {
   "updatedAt": "2026-09-08",
-  "items": []
+  "items": [
+    {
+      "file": "zerok-supply-chain.mp4",
+      "poster": "zerok-supply-chain.jpg",
+      "title": "零克云 AGI 数字员工 · 供应链管理专员",
+      "duration": 61,
+      "ratio": "16:9",
+      "aspect": 1.7778,
+      "hero": true,
+      "template": "剧情植入",
+      "industry": "AGI 数字员工"
+    },
+    {
+      "file": "zerok-legal.mp4",
+      "poster": "zerok-legal.jpg",
+      "title": "零克云 AGI 数字员工 · 法务专员",
+      "duration": 42,
+      "ratio": "16:9",
+      "aspect": 1.7778,
+      "hero": false,
+      "template": "老板口播种草",
+      "industry": "AGI 数字员工"
+    },
+    {
+      "file": "zerok-customer-service.mp4",
+      "poster": "zerok-customer-service.jpg",
+      "title": "零克云 AGI 数字员工 · 客服专员",
+      "duration": 58,
+      "ratio": "16:9",
+      "aspect": 1.7778,
+      "hero": false,
+      "template": "开箱 / 展示",
+      "industry": "AGI 数字员工"
+    },
+    {
+      "file": "zerok-hospital-team.mp4",
+      "poster": "zerok-hospital-team.jpg",
+      "title": "零克云 AGI 数字员工 · 医院综合服务团队",
+      "duration": 47,
+      "ratio": "16:9",
+      "aspect": 1.7778,
+      "hero": false,
+      "template": "证言 / 评价",
+      "industry": "医疗服务"
+    }
+  ]
 }
