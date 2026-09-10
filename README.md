@@ -3,7 +3,9 @@
 丢素材，出广告 —— 素材 + 一句剧情 → 30 秒内广告成片（Seedance 2.5）。
 
 - `/` 对外展示站（本包）
-- `/app` 出片工作台：easy-director v66 引擎原样搬入（`components/ed/`、`lib/`、`app/api/`、`netlify/functions/`），只用 Seedance 2.5，默认广告种草、20~30 秒、720p
+- `/app` 素材直出工作台（`components/AdMode.tsx` + `lib/adBrain.ts` + `app/api/adscript`）：丢素材 → 补个人（真人活体 / 演员库 / 照片）→ 一句主题 + 结构 → 节拍表 → 一次 Seedance 2.5 生成
+- `/app/studio` 导演模式：easy-director v66 引擎原样搬入（`components/ed/`、`lib/`、`app/api/`、`netlify/functions/`），拆场 / 选角 / 关键帧 / 多场拼接
+- 图片走 `/api/rehost`（ImgBB）；参考视频、音频走 `netlify/functions/media-put`（Netlify Blobs，≤ 5MB）由 `media-get` 公网提供
 
 ## 本地运行
 
