@@ -16,6 +16,7 @@ import {
   type AdAsset,
   type AdPerson,
   type AdTemplateKey,
+  type AssetMode,
   type AudioRole,
   type Beat,
   type ImageRole,
@@ -41,11 +42,16 @@ type Work = {
 };
 
 const IMAGE_ROLES: { key: ImageRole; label: string; hint: string }[] = [
-  { key: "product", label: "商品", hint: "主体，@参考 + 尾段定格" },
-  { key: "detail", label: "商品细节", hint: "同一件商品的其他角度" },
-  { key: "scene", label: "场景", hint: "店面 / 使用环境" },
-  { key: "style", label: "风格", hint: "只取色调与质感" },
+  { key: "unused", label: "不参与", hint: "点选用途后才进请求" },
+  { key: "product", label: "商品主图", hint: "外观锚点，最多 3 张" },
+  { key: "detail", label: "同一商品其他角度", hint: "侧面 / 细节，最多 3 张" },
+  { key: "scene", label: "场景", hint: "店面 / 使用环境，最多 2 张" },
+  { key: "style", label: "氛围参考", hint: "只取色调与质感，1 张" },
   { key: "logo", label: "logo", hint: "不进生成，留给叠加" },
+];
+const SEQ_ROLES: { key: ImageRole; label: string }[] = [
+  { key: "unused", label: "普通素材" },
+  { key: "product", label: "含商品 · 外观以此为准" },
 ];
 const VIDEO_USES: { key: VideoRole; label: string }[] = [
   { key: "motion", label: "动作" },
@@ -106,6 +112,9 @@ async function uploadMedia(file: File): Promise<string> {
 export default function AdMode() {
   // ---------- ① 素材 ----------
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetMode, setAssetMode] = useState<AssetMode>("product");
+  const [keepOriginal, setKeepOriginal] = useState(true);
+  const [refsSummary, setRefsSummary] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -156,14 +165,16 @@ export default function AdMode() {
         if (typeof d.lang === "string") setLang(d.lang);
         if (Array.isArray(d.assets)) setAssets(d.assets.filter((a: Asset) => a.status === "ready" && a.url).map((a: Asset) => ({ ...a, preview: a.url })));
         if (d.person && d.person.type) { setPerson(d.person); setPersonTab(d.person.type); }
+        if (d.assetMode === "product" || d.assetMode === "sequence") setAssetMode(d.assetMode);
+        if (typeof d.keepOriginal === "boolean") setKeepOriginal(d.keepOriginal);
       }
     } catch {}
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ brief, productName, productDesc, template, sec, aspect, res, lang, assets: assets.filter((a) => a.status === "ready"), person }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ brief, productName, productDesc, template, sec, aspect, res, lang, assets: assets.filter((a) => a.status === "ready"), person, assetMode, keepOriginal }));
     } catch {}
-  }, [brief, productName, productDesc, template, sec, aspect, res, lang, assets, person]);
+  }, [brief, productName, productDesc, template, sec, aspect, res, lang, assets, person, assetMode, keepOriginal]);
   useEffect(() => {
     if (job.status !== "gen" && job.status !== "submit" && job.status !== "script") return;
     const t = setInterval(() => setTick((x) => x + 1), 1000);
@@ -185,7 +196,7 @@ export default function AdMode() {
         const hasProduct = cur.some((a) => a.kind === "image" && a.role === "product");
         const base = { id, name: f.name, url: "", preview, status: "uploading" as const, sizeMB };
         const a: Asset = isImg
-          ? { ...base, kind: "image", role: hasProduct ? "detail" : "product" }
+          ? { ...base, kind: "image", role: hasProduct ? "unused" : "product" }
           : isVid
           ? { ...base, kind: "video", role: "motion", uses: ["motion"] }
           : { ...base, kind: "audio", role: "music" };
@@ -211,7 +222,7 @@ export default function AdMode() {
     const base = { id, name: u.split("/").pop() || u, url: u, preview: u, status: "ready" as const, sizeMB: 0 };
     setAssets((cur) => {
       const hasProduct = cur.some((a) => a.kind === "image" && a.role === "product");
-      const a: Asset = isVid ? { ...base, kind: "video", role: "motion", uses: ["motion"] } : isAud ? { ...base, kind: "audio", role: "music" } : { ...base, kind: "image", role: hasProduct ? "detail" : "product" };
+      const a: Asset = isVid ? { ...base, kind: "video", role: "motion", uses: ["motion"] } : isAud ? { ...base, kind: "audio", role: "music" } : { ...base, kind: "image", role: hasProduct ? "unused" : "product" };
       return [...cur, a];
     });
     setUrlInput("");
@@ -236,6 +247,16 @@ export default function AdMode() {
   function removeAsset(id: string) {
     setAssets((cur) => cur.filter((a) => a.id !== id));
   }
+  function moveAsset(id: string, dir: -1 | 1) {
+    setAssets((cur) => {
+      const i = cur.findIndex((a) => a.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= cur.length) return cur;
+      const next = cur.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
 
   // ---------- 人物 ----------
   async function onPhoto(f: File) {
@@ -258,9 +279,11 @@ export default function AdMode() {
 
   // ---------- 派生 ----------
   const readyAssets = assets.filter((a) => a.status === "ready");
+  const imageAssets = readyAssets.filter((a) => a.kind === "image" && a.role !== "logo");
   const productImgs = readyAssets.filter((a) => a.kind === "image" && (a.role === "product" || a.role === "detail"));
   const uploading = assets.some((a) => a.status === "uploading");
-  const canGo = productImgs.length > 0 && productName.trim().length > 0 && !uploading && job.status !== "gen" && job.status !== "submit" && job.status !== "script";
+  const hasEnoughImages = assetMode === "sequence" ? imageAssets.length > 0 : productImgs.length > 0;
+  const canGo = hasEnoughImages && productName.trim().length > 0 && !uploading && job.status !== "gen" && job.status !== "submit" && job.status !== "script";
   const price = (sec * ratePerSec(res)).toFixed(0);
   const assetNote = useMemo(() => {
     const n = (k: string) => readyAssets.filter((a) => a.kind === "image" && (a as any).role === k).length;
@@ -270,8 +293,9 @@ export default function AdMode() {
     if (n("scene")) parts.push(`场景图 ${n("scene")} 张`);
     if (readyAssets.some((a) => a.kind === "video")) parts.push("有实拍参考视频");
     if (person.type !== "none") parts.push("有固定人物出镜");
+    if (assetMode === "sequence") parts.push(`${imageAssets.length} 张素材按顺序串片，画面以素材为准`);
     return parts.join("，");
-  }, [readyAssets, person]);
+  }, [readyAssets, person, assetMode, imageAssets.length]);
 
   // ---------- 节拍表 ----------
   async function makeBeats(): Promise<Beat[]> {
@@ -281,7 +305,7 @@ export default function AdMode() {
       const r = await fetch("/api/adscript", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-access-key": getAccessKey() },
-        body: JSON.stringify({ brief, productName, productDesc, template, sec, lang, personKind: person.type, personName: person.type === "none" ? "" : person.name, assetNote }),
+        body: JSON.stringify({ brief, productName, productDesc, template, sec, lang, personKind: person.type, personName: person.type === "none" ? "" : person.name, assetNote, mode: assetMode, imageCount: imageAssets.length }),
       });
       const j: any = await r.json().catch(() => null);
       if (!r.ok) throw new Error(j?.error || `节拍表失败（${r.status}）`);
@@ -314,8 +338,13 @@ export default function AdMode() {
       useBeats = await makeBeats();
     }
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const refs = assembleRefs(readyAssets, person, { origin });
-    const prompt = buildAdPrompt({ brief, productName, productDesc, template, sec, aspect, lang, beats: useBeats, person, refs });
+    const refs = assembleRefs(readyAssets, person, { origin, mode: assetMode });
+    const prompt = buildAdPrompt({ brief, productName, productDesc, template, sec, aspect, lang, beats: useBeats, person, refs, mode: assetMode, keepOriginal });
+    setRefsSummary([
+      ...refs.images.map((r, i) => `@图片${i + 1} ${r.label || "真人活体素材（原生锁脸）"}`),
+      ...refs.videos.map((v, i) => `@视频${i + 1} ${v.uses.join(" / ")}`),
+      ...refs.audios.map((a, i) => `@音频${i + 1} ${a.role === "voice" ? "音色" : "配乐"}`),
+    ]);
     setJob({ status: "submit", prompt, startedAt: Date.now() });
     try {
       const taskId = await submitVideo({
@@ -369,10 +398,26 @@ export default function AdMode() {
         <div className="grid gap-6">
           {/* ① 素材 */}
           <section className="card p-5">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[16px] font-bold"><span className="mr-2 text-accent">①</span>丢素材</h2>
               <span className="text-[12px] text-ink-3">图片进图床 · 视频音频 ≤ 5MB · 一次最多 30 图 / 3 段视频 / 2 段音频</span>
             </div>
+            <div className="mb-3 grid gap-2 sm:grid-cols-2">
+              <button onClick={() => setAssetMode("product")} className={`rounded-lg border px-3 py-2 text-left transition ${assetMode === "product" ? "border-accent bg-[var(--accent-soft)]" : "border-[var(--line)] hover:border-[var(--line-strong)]"}`}>
+                <div className="text-[13.5px] font-bold">商品为主 <span className="ml-1 text-[11px] font-normal text-ink-3">推荐</span></div>
+                <div className="text-[11.5px] text-ink-3">一张主图锁商品外观，其余图按标签各司其职；没标的不进请求</div>
+              </button>
+              <button onClick={() => setAssetMode("sequence")} className={`rounded-lg border px-3 py-2 text-left transition ${assetMode === "sequence" ? "border-accent bg-[var(--accent-soft)]" : "border-[var(--line)] hover:border-[var(--line-strong)]"}`}>
+                <div className="text-[13.5px] font-bold">全部素材串片</div>
+                <div className="text-[11.5px] text-ink-3">每张图都是关键帧，按顺序出现在片里；适合实拍照片多的商家</div>
+              </button>
+            </div>
+            {assetMode === "sequence" && (
+              <label className="mb-3 flex items-center gap-2 text-[12.5px] text-ink-2">
+                <input type="checkbox" checked={keepOriginal} onChange={(e) => setKeepOriginal(e.target.checked)} className="accent-[var(--accent)]" />
+                原图不改（只做轻微动态，像 live 图）；关掉则允许模型在素材上延展画面
+              </label>
+            )}
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -381,7 +426,7 @@ export default function AdMode() {
               className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-8 text-center transition ${dragOver ? "border-accent bg-[var(--accent-soft)]" : "border-[var(--line-strong)] hover:border-accent"}`}
             >
               <div className="text-[15px] font-bold">把商品图、实拍片段、场景图、logo 全拖进来</div>
-              <div className="mt-1 text-[12.5px] text-ink-2">第一张图默认当商品主体，其余自动标成商品细节；标签可以改</div>
+              <div className="mt-1 text-[12.5px] text-ink-2">{assetMode === "sequence" ? "按上传顺序出现在片里，可用 ↑↓ 调整顺序" : "第一张图默认当商品主图；其余标上用途才会进请求"}</div>
               <input ref={fileRef} type="file" multiple accept="image/*,video/*,audio/*" className="hidden" onChange={(e) => e.target.files && addFiles(e.target.files)} />
             </div>
             <div className="mt-3 flex gap-2">
@@ -407,10 +452,20 @@ export default function AdMode() {
                       {a.status === "error" && <div className="absolute inset-x-0 bottom-0 bg-[rgba(178,58,58,0.9)] px-2 py-1 text-[11px] text-white" title={a.err}>失败：{a.err}</div>}
                     </div>
                     <div className="p-2">
-                      {a.kind === "image" && (
-                        <select value={a.role} onChange={(e) => setImageRole(a.id, e.target.value as ImageRole)} className="w-full rounded-md border hairline bg-bg px-2 py-1 text-[12px] outline-none focus:border-accent">
+                      {a.kind === "image" && assetMode === "product" && (
+                        <select value={a.role} onChange={(e) => setImageRole(a.id, e.target.value as ImageRole)} className={`w-full rounded-md border bg-bg px-2 py-1 text-[12px] outline-none focus:border-accent ${a.role === "unused" ? "border-[var(--line)] text-ink-3" : "border-accent"}`}>
                           {IMAGE_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label} · {r.hint}</option>)}
                         </select>
+                      )}
+                      {a.kind === "image" && assetMode === "sequence" && (
+                        <div className="flex items-center gap-1">
+                          <span className="chip chip-accent !text-[11px]">#{assets.filter((x) => x.kind === "image" && x.role !== "logo").findIndex((x) => x.id === a.id) + 1}</span>
+                          <select value={a.role === "product" || a.role === "detail" ? "product" : "unused"} onChange={(e) => setImageRole(a.id, e.target.value as ImageRole)} className="min-w-0 flex-1 rounded-md border hairline bg-bg px-1 py-1 text-[11.5px] outline-none focus:border-accent">
+                            {SEQ_ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                          </select>
+                          <button onClick={() => moveAsset(a.id, -1)} className="chip !px-1.5 !text-[11px]" aria-label="前移">↑</button>
+                          <button onClick={() => moveAsset(a.id, 1)} className="chip !px-1.5 !text-[11px]" aria-label="后移">↓</button>
+                        </div>
                       )}
                       {a.kind === "video" && (
                         <div className="flex flex-wrap gap-1">
@@ -570,7 +625,10 @@ export default function AdMode() {
               {person.type !== "none" && <span className="chip chip-accent">{person.type === "real" ? "🪪 真人" : "人物"} {person.name}</span>}
             </div>
             <div className="mt-3 text-[13px] text-ink-2">
-              商品参考 {productImgs.length} 张 · 场景 {readyAssets.filter((a) => a.kind === "image" && a.role === "scene").length} 张 · 视频 {readyAssets.filter((a) => a.kind === "video").length} 段 · 音频 {readyAssets.filter((a) => a.kind === "audio").length} 段
+              {assetMode === "sequence"
+                ? `串片 ${imageAssets.length} 张（含商品 ${productImgs.length} 张）`
+                : `商品参考 ${productImgs.length} 张 · 场景 ${readyAssets.filter((a) => a.kind === "image" && a.role === "scene").length} 张 · 未参与 ${readyAssets.filter((a) => a.kind === "image" && a.role === "unused").length} 张`}
+              {` · 视频 ${readyAssets.filter((a) => a.kind === "video").length} 段 · 音频 ${readyAssets.filter((a) => a.kind === "audio").length} 段`}
             </div>
             <div className="mt-3 flex items-baseline justify-between">
               <span className="text-[12px] text-ink-3">Seedance 2.5 · 单次生成</span>
@@ -578,7 +636,7 @@ export default function AdMode() {
             </div>
             {job.status === "idle" || job.status === "done" || job.status === "error" ? (
               <button onClick={() => generate(beats.length === 5)} disabled={!canGo} className="btn btn-accent mt-4 w-full justify-center disabled:opacity-40">
-                {uploading ? "素材上传中…" : productImgs.length === 0 ? "先放一张商品图" : !productName.trim() ? "填上商品名" : beats.length === 5 ? "按这份节拍出片" : "一键出广告"}
+                {uploading ? "素材上传中…" : !hasEnoughImages ? (assetMode === "sequence" ? "先放几张素材图" : "先标一张商品主图") : !productName.trim() ? "填上商品名" : beats.length === 5 ? "按这份节拍出片" : "一键出广告"}
               </button>
             ) : (
               <button onClick={cancel} className="btn btn-ghost mt-4 w-full justify-center">
@@ -587,6 +645,12 @@ export default function AdMode() {
             )}
             {job.status === "error" && <div className="mt-3 rounded-lg border border-[#b23a3a] bg-[rgba(178,58,58,0.12)] px-3 py-2 text-[12.5px]">{job.err}</div>}
             {job.status === "gen" && <div className="mt-2 text-[12px] text-ink-3">30 秒 720p 通常 3–10 分钟；关掉页面任务也会继续，回来在「作品」里拿。</div>}
+            {refsSummary.length > 0 && job.status !== "idle" && (
+              <details className="mt-3 text-[12px] text-ink-2">
+                <summary className="cursor-pointer text-ink-3">本次送入 {refsSummary.length} 份参考</summary>
+                <ol className="mt-1 grid gap-0.5 pl-1">{refsSummary.map((r, i) => <li key={i}>{r}</li>)}</ol>
+              </details>
+            )}
             {job.prompt && (
               <div className="mt-3">
                 <button onClick={() => setPromptOpen((o) => !o)} className="text-[12px] text-ink-3 underline-offset-2 hover:underline">{promptOpen ? "收起提示词" : "看这次的提示词"}</button>

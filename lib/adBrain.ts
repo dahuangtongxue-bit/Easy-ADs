@@ -5,7 +5,9 @@
 
 import { langName } from "./filmScript";
 
-export type ImageRole = "product" | "detail" | "scene" | "style" | "logo";
+export type ImageRole = "product" | "detail" | "scene" | "style" | "logo" | "unused";
+/** 素材用法：product = 商品为主（只有标了角色的图进请求）；sequence = 全部素材按顺序串片（每张都是关键帧） */
+export type AssetMode = "product" | "sequence";
 export type VideoRole = "motion" | "camera" | "rhythm" | "style";
 export type AudioRole = "voice" | "music";
 
@@ -120,25 +122,51 @@ export function fallbackBeats(total: number, key: AdTemplateKey, productName: st
 export type RefItem = { url: string; label: string };
 
 /** 把素材 + 人物整理成「参考图列表 + @ 映射说明」。顺序即 @图片N 的编号，必须与提交的 URL 顺序严丝合缝。 */
-export function assembleRefs(assets: AdAsset[], person: AdPerson, opts: { origin: string }): {
+export type RefBundle = {
   images: RefItem[];
   videos: { url: string; uses: VideoRole[] }[];
   audios: { url: string; role: AudioRole }[];
   productCount: number;
-} {
+  /** 串片模式：作为关键帧的素材张数（排在 images 最前面） */
+  keyframeCount: number;
+  /** 商品锚点图在 images 里的序号（1 起），没有则 0 */
+  productIndex: number;
+};
+
+export function assembleRefs(assets: AdAsset[], person: AdPerson, opts: { origin: string; mode?: AssetMode }): RefBundle {
+  const mode: AssetMode = opts.mode || "product";
   const abs = (u: string) => (/^https?:\/\//.test(u) || u.startsWith("asset://") ? u : opts.origin + u);
   const imgs = assets.filter((a): a is Extract<AdAsset, { kind: "image" }> => a.kind === "image" && a.role !== "logo");
-  const products = imgs.filter((a) => a.role === "product").slice(0, 3);
-  const details = imgs.filter((a) => a.role === "detail").slice(0, 3);
-  const scenes = imgs.filter((a) => a.role === "scene").slice(0, 2);
-  const styles = imgs.filter((a) => a.role === "style").slice(0, 1);
 
   const images: RefItem[] = [];
-  const productAll = [...products, ...details];
-  productAll.forEach((a, i) => {
-    const view = i === 0 ? "正面" : i === 1 ? "侧面" : i === 2 ? "另一角度" : `细节 ${i - 2}`;
-    images.push({ url: a.url, label: `定义同一件商品的${view}` });
-  });
+  let productCount = 0;
+  let keyframeCount = 0;
+  let productIndex = 0;
+
+  if (mode === "sequence") {
+    // 全部素材按上传顺序串片：每张都是关键帧，编号即顺序
+    const seq = imgs.slice(0, 24);
+    seq.forEach((a, i) => {
+      const isProduct = a.role === "product" || a.role === "detail";
+      images.push({ url: a.url, label: `为第 ${i + 1} 张素材画面${isProduct ? "（含商品，商品外观以此为准）" : ""}` });
+      if (isProduct) {
+        productCount++;
+        if (!productIndex) productIndex = i + 1;
+      }
+    });
+    keyframeCount = seq.length;
+    if (!productIndex && seq.length) productIndex = 1;
+  } else {
+    const products = imgs.filter((a) => a.role === "product").slice(0, 3);
+    const details = imgs.filter((a) => a.role === "detail").slice(0, 3);
+    const productAll = [...products, ...details];
+    productAll.forEach((a, i) => {
+      const view = i === 0 ? "正面" : i === 1 ? "侧面" : i === 2 ? "另一角度" : `细节 ${i - 2}`;
+      images.push({ url: a.url, label: `定义同一件商品的${view}` });
+    });
+    productCount = productAll.length;
+    productIndex = productAll.length ? 1 : 0;
+  }
 
   if (person.type === "real") {
     images.push({ url: "asset://" + person.assetId, label: "" }); // 真人活体：平台原生锁脸，不需要提示词绑定
@@ -150,8 +178,12 @@ export function assembleRefs(assets: AdAsset[], person: AdPerson, opts: { origin
     images.push({ url: person.img, label: `为人物「${person.name}」本人（五官、发型、体型必须与该图完全一致，不得改变或美化）` });
   }
 
-  scenes.forEach((a) => images.push({ url: a.url, label: "用于场景的环境、陈设与光线，不采用图片中的人物与文字" }));
-  styles.forEach((a) => images.push({ url: a.url, label: "只用于画面风格、色调与质感，不采用其中的商品、人物与文字" }));
+  if (mode !== "sequence") {
+    const scenes = imgs.filter((a) => a.role === "scene").slice(0, 2);
+    const styles = imgs.filter((a) => a.role === "style").slice(0, 1);
+    scenes.forEach((a) => images.push({ url: a.url, label: "用于场景的环境、陈设与光线，不采用图片中的人物与文字" }));
+    styles.forEach((a) => images.push({ url: a.url, label: "只用于画面风格、色调与质感，不采用其中的商品、人物与文字" }));
+  }
 
   const videos = assets
     .filter((a): a is Extract<AdAsset, { kind: "video" }> => a.kind === "video")
@@ -162,7 +194,7 @@ export function assembleRefs(assets: AdAsset[], person: AdPerson, opts: { origin
     .slice(0, 2)
     .map((a) => ({ url: a.url, role: a.role }));
 
-  return { images: images.slice(0, 30), videos, audios, productCount: productAll.length };
+  return { images: images.slice(0, 30), videos, audios, productCount, keyframeCount, productIndex };
 }
 
 const VIDEO_USE_WORD: Record<VideoRole, string> = { motion: "人物或手部的动作", camera: "运镜方式", rhythm: "剪辑节奏", style: "画面风格与光线" };
@@ -177,7 +209,10 @@ export type AdPromptInput = {
   lang: string;
   beats: Beat[];
   person: AdPerson;
-  refs: ReturnType<typeof assembleRefs>;
+  refs: RefBundle;
+  mode?: AssetMode;
+  /** 串片模式：原图不许改（live 图效果）；关掉则允许模型在素材基础上延展 */
+  keepOriginal?: boolean;
 };
 
 function aspectSentence(a: string): string {
@@ -195,8 +230,13 @@ export function buildAdPrompt(inp: AdPromptInput): string {
   inp.refs.images.forEach((r, i) => {
     if (r.label) bind.push(`@图片${i + 1} ${r.label}`);
   });
+  const seq = inp.mode === "sequence" && inp.refs.keyframeCount > 0;
   if (inp.refs.productCount > 0) {
-    bind.push(`成片中始终只有一件该商品「${p}」，外观、颜色、比例、材质严格与参考图一致，不采用参考图的背景`);
+    bind.push(
+      seq
+        ? `成片中始终只有一件该商品「${p}」，外观、颜色、比例、材质严格与 @图片${inp.refs.productIndex || 1} 一致`
+        : `成片中始终只有一件该商品「${p}」，外观、颜色、比例、材质严格与参考图一致，不采用参考图的背景`
+    );
   }
   if (inp.productDesc.trim()) bind.push(`商品外观：${inp.productDesc.trim()}`);
   inp.refs.videos.forEach((v, i) => {
@@ -219,9 +259,38 @@ export function buildAdPrompt(inp: AdPromptInput): string {
   const tpl = AD_TEMPLATES.find((t) => t.key === inp.template);
   lines.push(`这是一条 ${inp.sec} 秒的广告短片，结构为「${tpl?.name || "广告"}」。主题：${inp.brief.trim() || `介绍${p}`}。`);
 
+  // 串片模式：所有素材按顺序作为关键帧，逐段分配到节拍上（官方「一键成片 / 关键帧参考」写法）
+  const n = seq ? inp.refs.keyframeCount : 0;
+  const range = (i: number): [number, number] => {
+    if (n <= 0) return [0, 0];
+    if (n < 5) {
+      const idx = Math.min(n - 1, Math.floor((i * n) / 5));
+      return [idx + 1, idx + 1];
+    }
+    const a = Math.floor((i * n) / 5) + 1;
+    const b = Math.floor(((i + 1) * n) / 5);
+    return [a, Math.max(a, b)];
+  };
+  if (seq) {
+    lines.push(
+      `以图片 1 至图片 ${n} 的顺序作为关键帧，把它们串成这条 ${inp.sec} 秒的短片，按顺序推进、镜间硬切，每张素材都要在片中出现。` +
+        (inp.keepOriginal
+          ? `每张素材只做自然的轻微动态（光影浮动、轻微推拉、人物小动作），不要改变素材的内容、构图与色彩，保持与原图高度一致。`
+          : `可以在素材的基础上延展画面与运动，但商品外观、人物样貌必须与素材一致。`)
+    );
+  }
+
   // ④ 时间戳节拍：每段一个主要状态变化，段末写可观察状态；台词用 {}，音效用 <>
-  const beatLines = inp.beats.map((b) => {
-    const parts = [`${b.t0}-${b.t1}秒：${b.action.trim()}`];
+  let prevRange: [number, number] = [0, 0];
+  const beatLines = inp.beats.map((b, i) => {
+    let base = "";
+    if (seq) {
+      const r = range(i);
+      const same = r[0] === prevRange[0] && r[1] === prevRange[1];
+      base = same ? `延续@图片${r[0]}的画面，` : r[0] === r[1] ? `以@图片${r[0]}为画面基准，` : `以@图片${r[0]}至@图片${r[1]}为画面基准依次推进，`;
+      prevRange = r;
+    }
+    const parts = [`${b.t0}-${b.t1}秒：${base}${b.action.trim()}`];
     if (b.endState.trim()) parts.push(`结束时${b.endState.trim()}`);
     let s = parts.join("；") + "。";
     if (b.line && b.line.trim()) s += `{${b.line.trim()}}`;

@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
   const personName = String(body?.personName || "").trim().slice(0, 20);
   const personKind = String(body?.personKind || "none");
   const assetNote = String(body?.assetNote || "").trim().slice(0, 300);
+  const mode = body?.mode === "sequence" ? "sequence" : "product";
+  const imageCount = Math.max(0, Math.min(30, Math.round(Number(body?.imageCount) || 0)));
 
   const shell = scaleBeats(sec, template);
   const fallback = fallbackBeats(sec, template, productName);
@@ -67,7 +69,8 @@ export async function POST(req: NextRequest) {
 4. line 是这一段的台词，一句、15 字内、口语化、能说出卖点；没有人物时可以写旁白；最多三段有台词，第五段不写台词。
 5. sfx 是环境音或音效，5 字内，可省略。
 6. 不写任何文字、字幕、标牌、价格；不用绝对化用语（最、第一、唯一、国家级）。
-7. 台词语言：${lang === "zh" ? "中文" : lang}。
+7. 台词语言：${lang === "zh" ? "中文" : lang}。${mode === "sequence" ? `
+8. 画面以用户提供的 ${imageCount} 张素材图为准（按顺序作为关键帧，每段对应其中一到两张）：action 只描述素材上的动态、镜头运动与人物动作，不要新增素材里没有的场景或物件。` : ""}
 只输出 JSON：{"beats":[{"action":"","endState":"","line":"","sfx":""},…5 项]}，不要解释。`;
 
   const USER =
