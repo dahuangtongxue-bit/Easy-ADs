@@ -4,7 +4,7 @@
 
 - `/` 对外展示站（本包）
 - `/app` 素材直出工作台（`components/AdMode.tsx` + `lib/adBrain.ts` + `app/api/adscript`）：丢素材 → 补个人（真人活体 / 演员库 / 照片）→ 一句主题 + 结构 → 节拍表 → 一次 Seedance 2.5 生成
-- `/app/studio` 导演模式：easy-director v66 引擎原样搬入（`components/ed/`、`lib/`、`app/api/`、`netlify/functions/`），拆场 / 选角 / 关键帧 / 多场拼接
+- 引擎来自 easy-director v66（`lib/maas.ts`、`lib/filmScript.ts`、`app/api/video/*`、`app/api/asset/realperson`、`components/ed/RealPersonAuth.tsx`、演员库），导演模式工作台已于 v0.5 移除，需要精细分镜请用 easy-director 本身
 - 图片走 `/api/rehost`（ImgBB）；参考视频、音频走 `netlify/functions/media-put`（Netlify Blobs，≤ 5MB）由 `media-get` 公网提供
 
 ## 本地运行

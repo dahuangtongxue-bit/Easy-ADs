@@ -388,8 +388,8 @@ export default function AdMode() {
             <span className="text-[12px] text-ink-3">素材直出 · v{APP_VERSION}</span>
           </div>
           <nav className="flex items-center gap-2 text-[13px]">
-            <span className="chip chip-accent">素材直出</span>
-            <Link href="/app/studio" className="chip hover:text-ink">导演模式</Link>
+            <span className="chip chip-accent">Seedance 2.5</span>
+            {works.length > 0 && <a href="#works" className="chip hover:text-ink">作品 {works.length}</a>}
           </nav>
         </div>
       </header>
@@ -672,7 +672,7 @@ export default function AdMode() {
           )}
 
           {works.length > 0 && (
-            <section className="card p-4">
+            <section id="works" className="card p-4">
               <div className="mb-2 flex items-center justify-between">
                 <div className="text-[13px] font-bold">作品</div>
                 <span className="text-[11.5px] text-ink-3">{works.length} 条 · 本机保存</span>
