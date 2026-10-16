@@ -3,14 +3,27 @@
 
 const KEY_STORE = "ai-canvas-access-key";
 
+// 第三方 iframe / 隐私模式下 localStorage 可能被浏览器整体拒绝（SecurityError）。
+// 读写全部包 try/catch，拒绝时退化到内存态：本会话内口令依然有效，只是刷新即丢。
+let memKey = "";
+
 export function getAccessKey(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem(KEY_STORE) || "";
+  try {
+    return localStorage.getItem(KEY_STORE) || memKey;
+  } catch {
+    return memKey;
+  }
 }
 
 export function setAccessKey(v: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY_STORE, v);
+  memKey = v;
+  try {
+    localStorage.setItem(KEY_STORE, v);
+  } catch {
+    /* 存不了就只在内存里保留 */
+  }
 }
 
 function authHeaders(): Record<string, string> {
